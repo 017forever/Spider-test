@@ -53,6 +53,7 @@ def index():
     R += "<a href='/hot'>近期熱播排行</a><br><hr>"
     R += "<a href='/new'>本季新番</a><br><hr>"
     R += "<a href='/newArrive'>新上架</a><br><hr>"
+    R += "<a href='/expire'>⚠️ 本月授權到期</a><br><hr>"
     R += "<a href='/random'>隨機推薦動畫</a><br><hr>"
     R += "<a href='/search'>查詢動漫</a><br><hr>"
     return R
@@ -119,6 +120,25 @@ def new_arrive():
         genre_str = "、".join(d.get("genre", ["其他"]))
         R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}<br>"
         R += f"集數：{d.get('episode','未知')}　人氣：{d.get('views','未知')}<br>"
+        if d.get("link"):
+            R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
+        R += "<hr>"
+    return R
+
+
+@app.route("/expire")
+def expire():
+    R = "<h1>⚠️ 本月授權到期節目</h1>"
+    R += "<a href='/'>← 回首頁</a><br>"
+    R += "<p style='color:red'>以下節目即將下架，把握時間看完！</p><hr>"
+    data = [d for d in get_all_anime() if d.get("source") == "授權到期"]
+    if not data:
+        R += "目前沒有授權到期的節目資料"
+        return R
+    for d in data:
+        genre_str = "、".join(d.get("genre", ["其他"]))
+        R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}<br>"
+        R += f"年份：{d.get('year','')}　集數：{d.get('episode','未知')}　人氣：{d.get('views','未知')}<br>"
         if d.get("link"):
             R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
         R += "<hr>"
@@ -192,6 +212,8 @@ def webhook():
         info = handle_ranking()
     elif action == "random_recommend":
         info = handle_random()
+    elif action == "expiring":
+        info = handle_expiring()
     else:
         info = (
             "你好！我是巴哈動漫小精靈 🎌\n\n"
@@ -273,6 +295,20 @@ def handle_ranking():
     for doc in docs:
         d = doc.to_dict()
         info += f"  第{d.get('rank','?')}名 {d.get('title','未知')} ({d.get('views','未知')})\n"
+    return info
+
+
+def handle_expiring():
+    """本月授權到期節目"""
+    data = [d for d in get_all_anime() if d.get("source") == "授權到期"]
+    if not data:
+        return "目前沒有授權到期的節目資料 😊"
+    info = "⚠️ 本月即將下架節目："
+    for d in data[:8]:
+        genre_str = "、".join(d.get("genre", ["其他"]))
+        info += f"📺 {d.get('title','未知')}"
+        info += f"   類型：{genre_str} | 人氣：{d.get('views','未知')}"
+    info += "把握時間快去看完吧！⏰"
     return info
 
 
