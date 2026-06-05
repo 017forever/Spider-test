@@ -1,11 +1,3 @@
-"""
-===================================================
-  巴哈動漫瘋 - Vercel 部署版
-  無爬蟲，只負責網頁顯示 + Dialogflow webhook
-  爬蟲請在本機執行 bahamut_crawl_only.py
-===================================================
-"""
-
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
