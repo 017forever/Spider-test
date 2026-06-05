@@ -1,6 +1,4 @@
 from flask import Flask, request, jsonify, make_response
-import requests as req_lib
-from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, firestore
 import random
@@ -80,7 +78,6 @@ def normalize_genre(genre_input: str) -> str:
 @app.route("/")
 def index():
     R  = "<h1>歡迎進入動畫推薦網站</h1>"
-    R += "<a href='/crawl'>更新動畫資料</a><br><hr>"
     R += "<a href='/all'>查看全部動畫</a><br><hr>"
     R += "<a href='/hot'>近期熱播排行</a><br><hr>"
     R += "<a href='/new'>本季新番</a><br><hr>"
@@ -183,84 +180,6 @@ def search():
             R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
         R += "<hr>"
     return R
-
-
-# ──────────────────────────────────────────
-# 路由 1：爬蟲  GET /crawl
-# ──────────────────────────────────────────
-@app.route("/crawl")
-def crawl():
-    url = "https://ani.gamer.com.tw/"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Referer": "https://ani.gamer.com.tw/",
-    }
-
-    response = req_lib.get(url, headers=headers)
-    response.encoding = "utf-8"
-    if response.status_code != 200:
-        return f"請求失敗，狀態碼：{response.status_code}"
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    
-    newanime_block = soup.select_one(".timeline-ver > .newanime-block")
-    if not newanime_block:
-        return "找不到新番區塊，請確認網頁結構是否更新"
-
-    anime_items = newanime_block.select(".newanime-date-area")
-    all_docs = []
-
-    for item in anime_items:
-        title_tag   = item.select_one(".anime-name")
-        ep_tag      = item.select_one(".anime-episode p")
-        view_tag    = item.select_one(".anime-watch-number p")
-        link_tag    = item.select_one("a.anime-card-block")
-        img_tag     = item.select_one(".anime-blocker img")
-        hour_tag    = item.select_one(".anime-hours")
-        day_code    = item.get("data-date-code", "7")
-        animesn     = item.get("data-animesn", "")
-
-        title_str   = title_tag.get_text(strip=True)   if title_tag   else "未知"
-        episode_str = ep_tag.get_text(strip=True)      if ep_tag      else "未知"
-        views_str   = view_tag.get_text(strip=True)    if view_tag    else "0"
-        link_str    = "https://ani.gamer.com.tw/" + link_tag["href"] if link_tag else ""
-        image_str   = img_tag.get("data-src", "")      if img_tag     else ""
-        hour_str    = hour_tag.get_text(strip=True)    if hour_tag    else ""
-        day_str     = DAY_MAP.get(day_code, "未定")
-
-        doc = {
-            "title":     title_str,
-            "episode":   episode_str,
-            "views":     views_str,
-            "views_num": parse_views(views_str),
-            "link":      link_str,
-            "image":     image_str,
-            "hour":      hour_str,
-            "day":       day_str,
-            "animesn":   animesn,
-            "genre":     auto_genre(title_str),
-        }
-
-        db.collection("本季新番").document(title_str).set(doc)
-        all_docs.append(doc)
-
-    # 排行榜（前10）
-    sorted_docs = sorted(all_docs, key=lambda x: x["views_num"], reverse=True)[:10]
-    for rank, anime in enumerate(sorted_docs, start=1):
-        anime["rank"] = rank
-        db.collection("熱門排行").document(f"rank_{rank:02d}").set(anime)
-
-    return f"爬蟲及存檔完畢！共 {len(all_docs)} 部，熱門排行前10已更新"
-
 
 # ──────────────────────────────────────────
 # 路由 2：Dialogflow Webhook  POST /webhook
