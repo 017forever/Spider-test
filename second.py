@@ -1,3 +1,11 @@
+"""
+===================================================
+  巴哈動漫瘋 - GitHub/Vercel 部署版（無爬蟲路由）
+  所有動漫資料都在「本季新番」collection
+  用 source 欄位區分：本季新番 / 近期熱播 / 新上架
+===================================================
+"""
+
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -236,16 +244,26 @@ def handle_new_season():
     if not season and not new:
         return "目前資料庫還沒有資料，請先更新！"
 
-    info = "🎌 本季新番：\n\n"
+    info = "🎌 本季新番：\n"
+    info += "─────────────\n"
     for d in season:
         genre_str = "、".join(d.get("genre", ["其他"]))
-        info += f"📺 {d['title']}\n"
-        info += f"   類型：{genre_str} | 更新：星期{d.get('day','?')} {d.get('hour','')}\n\n"
+        info += f"\n📺 {d['title']}\n"
+        info += f"🏷 類型：{genre_str}\n"
+        info += f"🕐 更新：星期{d.get('day','?')} {d.get('hour','')}\n"
+        if d.get("link"):
+            info += f"🔗 {d['link']}\n"
+        info += "──────────────\n"
 
     if new:
-        info += "🆕 新上架：\n\n"
+        info += "\n🆕 新上架：\n"
+        info += "─────────────\n"
         for d in new:
-            info += f"📺 {d['title']} | 集數：{d.get('episode','未知')}\n"
+            info += f"\n📺 {d['title']}\n"
+            info += f"📦 集數：{d.get('episode','未知')}\n"
+            if d.get("link"):
+                info += f"🔗 {d['link']}\n"
+            info += "──────────────\n"
 
     info += "\n想查詳情輸入動漫名稱 😊"
     return info
@@ -257,10 +275,15 @@ def handle_by_genre(genre):
     matched = [d for d in get_all_anime() if genre in d.get("genre", [])]
     if not matched:
         return f"😢 目前沒有找到【{genre}】類型的動漫\n試試：異世界、戀愛、戰鬥、奇幻"
-    info = f"✨ 【{genre}】類型推薦：\n\n"
+    info = f"✨ 【{genre}】類型推薦：\n"
+    info += "─────────────\n"
     for d in matched[:5]:
-        info += f"🎬 {d['title']}\n"
-        info += f"   人氣：{d.get('views','未知')} | 集數：{d.get('episode','未知')}\n\n"
+        info += f"\n🎬 {d['title']}\n"
+        info += f"👁 人氣：{d.get('views','未知')}\n"
+        info += f"📦 集數：{d.get('episode','未知')}\n"
+        if d.get("link"):
+            info += f"🔗 {d['link']}\n"
+        info += "──────────────\n"
     return info
 
 
@@ -271,9 +294,10 @@ def handle_detail(anime_name):
     if not matched:
         return f"😢 找不到【{anime_name}】的資料\n請確認名稱，或試試其他關鍵字"
     genre_str = "、".join(matched.get("genre", ["其他"]))
-    info  = f"📖 {matched['title']}\n\n"
+    info  = f"📖 {matched['title']}\n"
+    info += "─────────────\n"
     info += f"🏷 類型：{genre_str}\n"
-    info += f"📺 集數：{matched.get('episode','未知')}\n"
+    info += f"📦 集數：{matched.get('episode','未知')}\n"
     info += f"👁 人氣：{matched.get('views','未知')}\n"
     if matched.get("day"):
         info += f"🕐 更新：星期{matched.get('day','?')} {matched.get('hour','')}\n"
@@ -291,10 +315,15 @@ def handle_ranking():
         for i, d in enumerate(sorted_data, 1):
             info += f"  第{i}名 {d.get('title','未知')} ({d.get('views','未知')})\n"
         return info
-    info = "🏆 本季人氣排行榜：\n\n"
+    info = "🏆 本季人氣排行榜：\n"
+    info += "─────────────\n"
     for doc in docs:
         d = doc.to_dict()
-        info += f"  第{d.get('rank','?')}名 {d.get('title','未知')} ({d.get('views','未知')})\n"
+        info += f"\n🥇 第{d.get('rank','?')}名 {d.get('title','未知')}\n"
+        info += f"👁 人氣：{d.get('views','未知')}\n"
+        if d.get("link"):
+            info += f"🔗 {d['link']}\n"
+        info += "──────────────\n"
     return info
 
 
@@ -303,11 +332,16 @@ def handle_expiring():
     data = [d for d in get_all_anime() if d.get("source") == "授權到期"]
     if not data:
         return "目前沒有授權到期的節目資料 😊"
-    info = "⚠️ 本月即將下架節目："
+    info = "⚠️ 本月即將下架節目：
+
+"
     for d in data[:8]:
         genre_str = "、".join(d.get("genre", ["其他"]))
-        info += f"📺 {d.get('title','未知')}"
-        info += f"   類型：{genre_str} | 人氣：{d.get('views','未知')}"
+        info += f"📺 {d.get('title','未知')}
+"
+        info += f"   類型：{genre_str} | 人氣：{d.get('views','未知')}
+
+"
     info += "把握時間快去看完吧！⏰"
     return info
 
@@ -318,11 +352,14 @@ def handle_random():
         return "目前沒有資料可推薦 😢"
     pick = random.choice(all_docs)
     genre_str = "、".join(pick.get("genre", ["其他"]))
-    info  = "🎲 隨機推薦！\n\n"
-    info += f"🎌 {pick.get('title','未知')}\n"
+    info  = "🎲 隨機推薦！\n"
+    info += "─────────────\n"
+    info += f"\n🎌 {pick.get('title','未知')}\n"
     info += f"🏷 類型：{genre_str}\n"
-    info += f"📺 集數：{pick.get('episode','未知')}\n"
+    info += f"📦 集數：{pick.get('episode','未知')}\n"
     info += f"👁 人氣：{pick.get('views','未知')}\n"
+    if pick.get("day"):
+        info += f"🕐 更新：星期{pick.get('day','?')} {pick.get('hour','')}\n"
     if pick.get("link"):
         info += f"🔗 {pick['link']}\n"
     info += "\n快去看看吧！🍿"
