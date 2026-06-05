@@ -1,3 +1,11 @@
+"""
+===================================================
+  巴哈動漫瘋 - GitHub/Vercel 部署版（無爬蟲路由）
+  所有動漫資料都在「本季新番」collection
+  用 source 欄位區分：本季新番 / 近期熱播 / 新上架
+===================================================
+"""
+
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -22,9 +30,6 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# ──────────────────────────────────────────
-# 類型同義詞對照
-# ──────────────────────────────────────────
 GENRE_ALIAS = {
     "打架": "戰鬥", "熱血": "戰鬥",
     "穿越": "異世界", "轉生": "異世界",
@@ -39,6 +44,11 @@ GENRE_ALIAS = {
 
 def normalize_genre(genre_input: str) -> str:
     return GENRE_ALIAS.get(genre_input.strip(), genre_input.strip())
+
+
+def get_all_anime():
+    """讀取本季新番 collection 全部資料"""
+    return [doc.to_dict() for doc in db.collection("本季新番").get()]
 
 
 # ──────────────────────────────────────────
@@ -58,13 +68,11 @@ def index():
 
 @app.route("/all")
 def all_anime():
-    docs = db.collection("本季新番").get()
     R = "<h1>全部動畫</h1>"
     R += "<a href='/'>← 回首頁</a><br><hr>"
-    for doc in docs:
-        d = doc.to_dict()
+    for d in get_all_anime():
         genre_str = "、".join(d.get("genre", ["其他"]))
-        R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}　"
+        R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}　年份：{d.get('year','')}　"
         R += f"集數：{d.get('episode','未知')}　人氣：{d.get('views','未知')}<br>"
         if d.get("link"):
             R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
@@ -74,29 +82,36 @@ def all_anime():
 
 @app.route("/hot")
 def hot():
-    docs = db.collection("近期熱播").get()
     R = "<h1>近期熱播 🔥</h1>"
     R += "<a href='/'>← 回首頁</a><br><hr>"
-    all_data = sorted([doc.to_dict() for doc in docs],
-                      key=lambda x: x.get("views_num", 0), reverse=True)
-    for i, d in enumerate(all_data, 1):
-        R += f"第{i}名　<b>{d.get('title','未知')}</b>　人氣：{d.get('views','未知')}<br>"
-        if d.get("link"):
-            R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
-        R += "<hr>"
+    docs = db.collection("熱門排行").order_by("rank").limit(10).get()
+    if docs:
+        for doc in docs:
+            d = doc.to_dict()
+            R += f"第{d.get('rank','?')}名　<b>{d.get('title','未知')}</b>　人氣：{d.get('views','未知')}<br>"
+            if d.get("link"):
+                R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
+            R += "<hr>"
+    else:
+        # fallback：從本季新番篩近期熱播
+        data = [d for d in get_all_anime() if d.get("source") == "近期熱播"]
+        for i, d in enumerate(sorted(data, key=lambda x: x.get("views_num", 0), reverse=True), 1):
+            R += f"第{i}名　<b>{d.get('title','未知')}</b>　人氣：{d.get('views','未知')}<br>"
+            if d.get("link"):
+                R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
+            R += "<hr>"
     return R
 
 
 @app.route("/new")
 def new_anime():
-    docs = db.collection("本季新番").get()
     R = "<h1>本季新番 🎌</h1>"
     R += "<a href='/'>← 回首頁</a><br><hr>"
-    for doc in docs:
-        d = doc.to_dict()
+    data = [d for d in get_all_anime() if d.get("source") == "本季新番"]
+    for d in data:
         genre_str = "、".join(d.get("genre", ["其他"]))
         R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}<br>"
-        R += f"更新：星期{d.get('day','?')} {d.get('hour','')}　集數：{d.get('episode','未知')}<br>"
+        R += f"年份：{d.get('year','')}　更新：星期{d.get('day','?')} {d.get('hour','')}　集數：{d.get('episode','未知')}<br>"
         if d.get("link"):
             R += f"<a href='{d['link']}' target='_blank'>▶ 前往觀看</a>"
         R += "<hr>"
@@ -105,11 +120,10 @@ def new_anime():
 
 @app.route("/newArrive")
 def new_arrive():
-    docs = db.collection("新上架").get()
     R = "<h1>新上架 🆕</h1>"
     R += "<a href='/'>← 回首頁</a><br><hr>"
-    for doc in docs:
-        d = doc.to_dict()
+    data = [d for d in get_all_anime() if d.get("source") == "新上架"]
+    for d in data:
         genre_str = "、".join(d.get("genre", ["其他"]))
         R += f"<b>{d.get('title','未知')}</b>　類型：{genre_str}<br>"
         R += f"集數：{d.get('episode','未知')}　人氣：{d.get('views','未知')}<br>"
@@ -121,10 +135,7 @@ def new_arrive():
 
 @app.route("/random")
 def random_anime():
-    all_docs = (
-        [doc.to_dict() for doc in db.collection("本季新番").get()] +
-        [doc.to_dict() for doc in db.collection("近期熱播").get()]
-    )
+    all_docs = get_all_anime()
     R = "<h1>隨機推薦動畫 🎲</h1>"
     R += "<a href='/'>← 回首頁</a>　<a href='/random'>再推薦一部</a><br><hr>"
     if not all_docs:
@@ -153,18 +164,7 @@ def search():
     if not keyword:
         R += "請輸入動漫名稱關鍵字進行搜尋"
         return R
-    all_docs = (
-        [doc.to_dict() for doc in db.collection("本季新番").get()] +
-        [doc.to_dict() for doc in db.collection("近期熱播").get()] +
-        [doc.to_dict() for doc in db.collection("新上架").get()]
-    )
-    seen = set()
-    results = []
-    for d in all_docs:
-        t = d.get("title", "")
-        if keyword in t and t not in seen:
-            seen.add(t)
-            results.append(d)
+    results = [d for d in get_all_anime() if keyword in d.get("title", "")]
     if not results:
         R += f"找不到含有「{keyword}」的動漫"
         return R
@@ -179,7 +179,7 @@ def search():
 
 
 # ──────────────────────────────────────────
-# Dialogflow Webhook  POST /webhook
+# Dialogflow Webhook
 # ──────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -214,34 +214,33 @@ def webhook():
 
 
 def handle_new_season():
-    docs = db.collection("本季新番").limit(8).get()
-    if not docs:
-        return "目前資料庫還沒有本季新番資料！"
-    info = "🎌 本季新番一覽：\n\n"
-    for doc in docs:
-        d = doc.to_dict()
+    """本季新番 + 新上架，各取5部"""
+    all_docs = get_all_anime()
+    season = [d for d in all_docs if d.get("source") == "本季新番"][:5]
+    new    = [d for d in all_docs if d.get("source") == "新上架"][:3]
+
+    if not season and not new:
+        return "目前資料庫還沒有資料，請先更新！"
+
+    info = "🎌 本季新番：\n\n"
+    for d in season:
         genre_str = "、".join(d.get("genre", ["其他"]))
         info += f"📺 {d['title']}\n"
-        info += f"   類型：{genre_str} | 更新：星期{d.get('day','?')} {d.get('hour','')}\n"
-        info += f"   集數：{d.get('episode','未知')} | 人氣：{d.get('views','未知')}\n\n"
-    info += "想查某部的詳情，輸入動漫名稱就可以喔 😊"
+        info += f"   類型：{genre_str} | 更新：星期{d.get('day','?')} {d.get('hour','')}\n\n"
+
+    if new:
+        info += "🆕 新上架：\n\n"
+        for d in new:
+            info += f"📺 {d['title']} | 集數：{d.get('episode','未知')}\n"
+
+    info += "\n想查詳情輸入動漫名稱 😊"
     return info
 
 
 def handle_by_genre(genre):
     if not genre:
         return "請告訴我你想看哪種類型？\n例如：異世界、戀愛、戰鬥、校園、科幻、奇幻、懸疑、運動"
-    all_docs = (
-        [doc.to_dict() for doc in db.collection("本季新番").get()] +
-        [doc.to_dict() for doc in db.collection("近期熱播").get()]
-    )
-    seen = set()
-    matched = []
-    for d in all_docs:
-        t = d.get("title", "")
-        if genre in d.get("genre", []) and t not in seen:
-            seen.add(t)
-            matched.append(d)
+    matched = [d for d in get_all_anime() if genre in d.get("genre", [])]
     if not matched:
         return f"😢 目前沒有找到【{genre}】類型的動漫\n試試：異世界、戀愛、戰鬥、奇幻"
     info = f"✨ 【{genre}】類型推薦：\n\n"
@@ -254,11 +253,7 @@ def handle_by_genre(genre):
 def handle_detail(anime_name):
     if not anime_name:
         return "請告訴我你想查哪部動漫的名稱？"
-    all_docs = (
-        [doc.to_dict() for doc in db.collection("本季新番").get()] +
-        [doc.to_dict() for doc in db.collection("近期熱播").get()]
-    )
-    matched = next((d for d in all_docs if anime_name in d.get("title", "")), None)
+    matched = next((d for d in get_all_anime() if anime_name in d.get("title", "")), None)
     if not matched:
         return f"😢 找不到【{anime_name}】的資料\n請確認名稱，或試試其他關鍵字"
     genre_str = "、".join(matched.get("genre", ["其他"]))
@@ -276,10 +271,10 @@ def handle_detail(anime_name):
 def handle_ranking():
     docs = db.collection("熱門排行").order_by("rank").limit(10).get()
     if not docs:
-        all_docs = [doc.to_dict() for doc in db.collection("近期熱播").get()]
-        sorted_docs = sorted(all_docs, key=lambda x: x.get("views_num", 0), reverse=True)[:10]
+        data = [d for d in get_all_anime() if d.get("source") == "近期熱播"]
+        sorted_data = sorted(data, key=lambda x: x.get("views_num", 0), reverse=True)[:10]
         info = "🏆 本季人氣排行榜：\n\n"
-        for i, d in enumerate(sorted_docs, 1):
+        for i, d in enumerate(sorted_data, 1):
             info += f"  第{i}名 {d.get('title','未知')} ({d.get('views','未知')})\n"
         return info
     info = "🏆 本季人氣排行榜：\n\n"
@@ -290,10 +285,7 @@ def handle_ranking():
 
 
 def handle_random():
-    all_docs = (
-        [doc.to_dict() for doc in db.collection("本季新番").get()] +
-        [doc.to_dict() for doc in db.collection("近期熱播").get()]
-    )
+    all_docs = get_all_anime()
     if not all_docs:
         return "目前沒有資料可推薦 😢"
     pick = random.choice(all_docs)
