@@ -1,11 +1,3 @@
-"""
-===================================================
-  巴哈動漫瘋 - GitHub/Vercel 部署版（無爬蟲路由）
-  所有動漫資料都在「本季新番」collection
-  用 source 欄位區分：本季新番 / 近期熱播 / 新上架
-===================================================
-"""
-
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
