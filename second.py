@@ -289,7 +289,17 @@ def handle_by_genre(genre):
 def handle_detail(anime_name):
     if not anime_name:
         return "請告訴我你想查哪部動漫的名稱？"
-    matched = next((d for d in get_all_anime() if anime_name in d.get("title", "")), None)
+    all_docs = get_all_anime()
+
+    # 先找完全符合
+    matched = next((d for d in all_docs if d.get("title", "") == anime_name), None)
+
+    # 再找部分符合（依人氣排序，取最高人氣的）
+    if not matched:
+        candidates = [d for d in all_docs if anime_name in d.get("title", "")]
+        if candidates:
+            matched = sorted(candidates, key=lambda x: x.get("views_num", 0), reverse=True)[0]
+
     if not matched:
         return f"😢 找不到【{anime_name}】的資料\n請確認名稱，或試試其他關鍵字"
     genre_str = "、".join(matched.get("genre", ["其他"]))
