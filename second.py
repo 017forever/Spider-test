@@ -286,14 +286,25 @@ def handle_by_genre(genre):
     return info
 
 
+def normalize_text(text):
+    
+    text = text.lower()
+    
+    alias = {
+        "迴": "回", "着": "著", "剋": "克",
+        "捲": "卷", "麵": "麺", "歎": "嘆",
+    }
+    for old, new in alias.items():
+        text = text.replace(old, new)
+    return text
+
+
 def fuzzy_match(query, title):
-    """模糊比對：查詢字串的每個字都在標題裡就算符合"""
+    
     query = query.lower().strip()
     title = title.lower().strip()
-    # 完全包含
     if query in title:
         return True
-    # 每個字都在標題裡
     return all(ch in title for ch in query if ch.strip())
 
 
@@ -302,7 +313,7 @@ def handle_detail(anime_name):
         return "請告訴我你想查哪部動漫的名稱？"
     all_docs = get_all_anime()
 
-    # 1. 完全符合（最優先）
+    # 1. 完全符合（不分大小寫）
     matched = next((d for d in all_docs if d.get("title", "").lower() == anime_name.lower()), None)
 
     # 2. 部分包含（不分大小寫，依人氣排序）
@@ -311,7 +322,14 @@ def handle_detail(anime_name):
         if candidates:
             matched = sorted(candidates, key=lambda x: x.get("views_num", 0), reverse=True)[0]
 
-    # 3. 模糊比對（每個字都在標題裡，依人氣排序）
+    # 3. 異體字標準化後比對
+    if not matched:
+        norm_query = normalize_text(anime_name)
+        candidates = [d for d in all_docs if norm_query in normalize_text(d.get("title", ""))]
+        if candidates:
+            matched = sorted(candidates, key=lambda x: x.get("views_num", 0), reverse=True)[0]
+
+    # 4. 模糊比對（每個字都在標題裡）
     if not matched:
         candidates = [d for d in all_docs if fuzzy_match(anime_name, d.get("title", ""))]
         if candidates:
