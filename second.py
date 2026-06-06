@@ -216,20 +216,7 @@ def webhook():
     elif action == "ranking":
         info = handle_ranking()
     elif action == "random_recommend" or action == "random_again":
-        result = handle_random()
-        response_data = {
-            "fulfillmentText": result["fallback"],
-            "payload": {
-                "line": {
-                    "replyMessage": {
-                        "type": "flex",
-                        "altText": "🎲 隨機推薦動漫",
-                        "contents": result["flex"]
-                    }
-                }
-            }
-        }
-        return make_response(jsonify(response_data))
+        info = handle_random()
     elif action == "expiring":
         info = handle_expiring()
     elif action == "ranking_detail":
@@ -349,85 +336,20 @@ def handle_ranking():
 def handle_random():
     all_docs = get_all_anime()
     if not all_docs:
-        return {"flex": None, "fallback": "目前沒有資料可推薦 😢"}
+        return "目前沒有資料可推薦 😢"
     pick = random.choice(all_docs)
     genre_str = "、".join(pick.get("genre", ["其他"]))
-    title   = pick.get("title", "未知")
-    views   = pick.get("views", "未知")
-    episode = pick.get("episode", "未知")
-    image   = pick.get("image", "") or "https://i2.bahamut.com.tw/anime/logo.svg"
-    link    = pick.get("link", "https://ani.gamer.com.tw")
-
-    flex = {
-        "type": "bubble",
-        "hero": {
-            "type": "image",
-            "url": image,
-            "size": "full",
-            "aspectRatio": "16:9",
-            "aspectMode": "cover",
-            "action": {"type": "uri", "uri": link}
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
-                {"type": "text", "text": "🎲 隨機推薦", "size": "xs", "color": "#aaaaaa"},
-                {"type": "text", "text": title, "weight": "bold", "size": "lg", "wrap": True},
-                {
-                    "type": "box",
-                    "layout": "vertical",
-                    "margin": "md",
-                    "spacing": "xs",
-                    "contents": [
-                        {
-                            "type": "box", "layout": "baseline", "spacing": "sm",
-                            "contents": [
-                                {"type": "text", "text": "🏷 類型", "size": "sm", "color": "#aaaaaa", "flex": 2},
-                                {"type": "text", "text": genre_str, "size": "sm", "flex": 4, "wrap": True}
-                            ]
-                        },
-                        {
-                            "type": "box", "layout": "baseline", "spacing": "sm",
-                            "contents": [
-                                {"type": "text", "text": "👁 人氣", "size": "sm", "color": "#aaaaaa", "flex": 2},
-                                {"type": "text", "text": views, "size": "sm", "flex": 4}
-                            ]
-                        },
-                        {
-                            "type": "box", "layout": "baseline", "spacing": "sm",
-                            "contents": [
-                                {"type": "text", "text": "📦 集數", "size": "sm", "color": "#aaaaaa", "flex": 2},
-                                {"type": "text", "text": episode, "size": "sm", "flex": 4}
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "color": "#00B900",
-                    "action": {"type": "uri", "label": "▶ 前往觀看", "uri": link}
-                },
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "margin": "sm",
-                    "action": {"type": "message", "label": "🎲 換一部", "text": "換一部"}
-                }
-            ]
-        }
-    }
-
-    fallback = f"🎲 隨機推薦！\n{title}\n🏷 類型：{genre_str}\n👁 人氣：{views}\n📦 集數：{episode}\n🔗 {link}\n快去看看吧！🍿"
-    return {"flex": flex, "fallback": fallback}
+    info  = "🎲 隨機推薦！\n─────────────\n"
+    info += f"🎌 {pick.get('title','未知')}\n"
+    info += f"🏷 類型：{genre_str}\n"
+    info += f"📦 集數：{pick.get('episode','未知')}\n"
+    info += f"👁 人氣：{pick.get('views','未知')}\n"
+    if pick.get("day"):
+        info += f"🕐 更新：星期{pick.get('day','?')} {pick.get('hour','')}\n"
+    if pick.get("link"):
+        info += f"🔗 {pick['link']}\n"
+    info += "\n快去看看吧！🍿"
+    return info
 
 
 def handle_ranking_detail(rank_num):
