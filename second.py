@@ -221,9 +221,11 @@ def webhook():
             "fulfillmentText": result["fallback"],
             "payload": {
                 "line": {
-                    "type": "flex",
-                    "altText": "🎲 隨機推薦動漫",
-                    "contents": result["flex"]
+                    "replyMessage": {
+                        "type": "flex",
+                        "altText": "🎲 隨機推薦動漫",
+                        "contents": result["flex"]
+                    }
                 }
             }
         }
