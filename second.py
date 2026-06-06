@@ -220,7 +220,8 @@ def webhook():
     elif action == "expiring":
         info = handle_expiring()
     elif action == "ranking_detail":
-        info = handle_ranking_detail()
+        rank_num = parameters.get("rank", 1)
+        info = handle_ranking_detail(rank_num)
     else:
         info = (
             "你好！我是巴哈動漫小精靈 🎌\n\n"
@@ -352,14 +353,21 @@ def handle_random():
     return info
 
 
-def handle_ranking_detail():
-    """排行榜第一名詳情"""
-    doc = db.collection("熱門排行").document("rank_01").get()
+def handle_ranking_detail(rank_num):
+    """排行榜第N名詳情"""
+    try:
+        rank = int(float(str(rank_num))) if rank_num else 1
+    except:
+        rank = 1
+    if rank < 1 or rank > 10:
+        return "只能查詢第1名到第10名喔 😊"
+    doc_id = f"rank_{rank:02d}"
+    doc = db.collection("熱門排行").document(doc_id).get()
     if not doc.exists:
-        return "找不到排行榜資料 😢"
+        return f"找不到第{rank}名的資料 😢"
     d = doc.to_dict()
     genre_str = "、".join(d.get("genre", ["其他"]))
-    info  = "🏆 人氣第一名─────────────"
+    info  = f"🏆 人氣第{rank}名─────────────"
     info += f"🎌 {d.get('title','未知')}"
     info += f"🏷 類型：{genre_str}"
     info += f"👁 人氣：{d.get('views','未知')}"
