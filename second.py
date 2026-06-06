@@ -286,22 +286,40 @@ def handle_by_genre(genre):
     return info
 
 
+def fuzzy_match(query, title):
+    """模糊比對：查詢字串的每個字都在標題裡就算符合"""
+    query = query.lower().strip()
+    title = title.lower().strip()
+    # 完全包含
+    if query in title:
+        return True
+    # 每個字都在標題裡
+    return all(ch in title for ch in query if ch.strip())
+
+
 def handle_detail(anime_name):
     if not anime_name:
         return "請告訴我你想查哪部動漫的名稱？"
     all_docs = get_all_anime()
 
-    # 先找完全符合
-    matched = next((d for d in all_docs if d.get("title", "") == anime_name), None)
+    # 1. 完全符合（最優先）
+    matched = next((d for d in all_docs if d.get("title", "").lower() == anime_name.lower()), None)
 
-    # 再找部分符合（依人氣排序，取最高人氣的）
+    # 2. 部分包含（不分大小寫，依人氣排序）
     if not matched:
-        candidates = [d for d in all_docs if anime_name in d.get("title", "")]
+        candidates = [d for d in all_docs if anime_name.lower() in d.get("title", "").lower()]
+        if candidates:
+            matched = sorted(candidates, key=lambda x: x.get("views_num", 0), reverse=True)[0]
+
+    # 3. 模糊比對（每個字都在標題裡，依人氣排序）
+    if not matched:
+        candidates = [d for d in all_docs if fuzzy_match(anime_name, d.get("title", ""))]
         if candidates:
             matched = sorted(candidates, key=lambda x: x.get("views_num", 0), reverse=True)[0]
 
     if not matched:
         return f"😢 找不到【{anime_name}】的資料\n請確認名稱，或試試其他關鍵字"
+
     genre_str = "、".join(matched.get("genre", ["其他"]))
     info  = f"📖 {matched['title']}\n"
     info += "─────────────\n"
