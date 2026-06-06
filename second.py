@@ -222,6 +222,8 @@ def webhook():
     elif action == "ranking_detail":
         rank_num = parameters.get("rank", 1)
         info = handle_ranking_detail(rank_num)
+    elif action == "random_again":
+        info = handle_random()
     else:
         info = (
             "你好！我是巴哈動漫小精靈 🎌\n\n"
